@@ -1,14 +1,7 @@
 import socket
+import os
 
 class TCPServer:
-    host = '127.0.0.1'
-    port = 8888
-
-    isListening = True
-
-    method = None
-    uri = None
-    http_version = "1.1"
 
     def __init__(self, host='127.0.0.1',port=8888):
         self.host = host
@@ -24,7 +17,7 @@ class TCPServer:
 
         print(f"Listening at {s.getsockname()}")
 
-        while self.isListening:
+        while True:
             conn,addr = s.accept()
 
             print("Connected by",addr)
@@ -52,29 +45,32 @@ class HTTPServer(TCPServer):
     status_codes = {
         200: 'OK',
         404: 'Not Found',
+        501: 'Not Implemented',
     }
 
     def handle_request(self, data):
 
-        response_line = self.response_line(status_code=200)
+       request = HTTPRequest(data)
+       
+       try:
+        handler = getattr(self,'handle_%s' % request.method)
 
-        response_headers = self.response_headers()
+       except AttributeError:
+        handler = self.HTTP_501_handler
 
-        blank_line = b"\r\n"
+       response = handler(request)
 
-        response_body = b"""<html> 
-        <body>
-        <h1>Request Reciveed</h1>
-        </body>
-        </html>
-        """
-        return b"".join([response_line,response_headers,blank_line,response_body])
+       return response
     
+
+   
+
+
     def response_line(self,status_code):
         reason = self.status_codes[status_code]
-        line = "HTTP/1.1 %s %s\r\n" % (status_code,reason)
+        response_line = "HTTP/1.1 %s %s\r\n" % (status_code,reason)
 
-        return line.encode()
+        return response_line.encode()
     
     def response_headers(self, extra_headers = None):
         headers_copy = self.headers.copy()
@@ -82,12 +78,103 @@ class HTTPServer(TCPServer):
         if extra_headers:
             headers_copy.update(extra_headers)
         
-        headers = ""
+        headers = ''
 
         for h in headers_copy:
             headers += "%s: %s\r\n" % (h,headers_copy[h])
 
         return headers.encode()
+    
+
+    def handle_GET(self,request):
+        filename = request.uri.strip('/')
+
+        if os.path.exists(filename):
+            response_line = self.response_line(status_code=200)
+
+            response_headers = self.response_headers()
+
+            with open (filename, 'rb') as f:
+                response_body = f.read()
+        
+        else:
+            response_line = self.response_line(status_code=404)
+            response_headers = self.response_headers()
+            response_body = b"<h1>404 Not Found</h1>"
+
+        blank_line = b"\r\n"
+
+        return b"".join([response_line,response_headers,blank_line,response_body])
+    
+    def handle_POST(self,request):
+        
+        #print(request.body)
+
+        command = str(request.body)
+
+        command = command.replace("+"," ")
+
+        index = command.find("=");
+        command = command[index+1:-1]
+
+        print(command)
+
+        #call function here to actually execute the code
+
+        response_line = self.response_line(status_code=501)
+
+        response_headers = self.response_headers()
+
+        blank_line = b'\r\n'
+
+        resonse_body = b"<h1>Received command</h1>"
+
+        return b"".join([response_line,response_headers,blank_line,resonse_body])
+
+    def HTTP_501_handler(self,request):
+       response_line = self.response_line(status_code=501)
+
+       response_headers = self.response_headers()
+
+       blank_line = b'\r\n'
+
+       resonse_body = b"<h1>501 Not Implemented</h1>"
+
+       return b"".join([response_line,response_headers,blank_line,resonse_body])
+    
+  
+    
+class HTTPRequest:
+    def __init__(self,data):
+        self.method = None
+        self.uri = None
+        self.body = ""
+        self.http_version = "1.1"
+
+        self.parse(data)
+
+    def parse(self,data):
+        lines = data.split(b"\r\n")
+
+        request_line = lines[0] #body would be lines[1] or something
+
+        words = request_line.split(b" ")
+
+        self.method = words[0].decode()
+
+        if len(words) > 1:
+            self.uri = words[1].decode()
+
+        if len(words) > 2:
+            self.http_version = words[2]
+
+        if len(lines) > 17:
+            self.body = lines[-1] #last line is the body
+            #print(body_line)
+            #for l in lines:
+             #   print("%s\n" % l)
+
+            # here is probably where you would parse the request body
 
 
 if __name__ == '__main__':
