@@ -2,6 +2,7 @@ import socket
 import os
 import subprocess
 
+
 class TCPServer:
 
     def __init__(self, host='127.0.0.1',port=8888):
@@ -111,14 +112,16 @@ class HTTPServer(TCPServer):
         
         #print(request.body)
 
+        #command = str(request.body)
         command = str(request.body)
 
         command = command.replace("+"," ")
+        command = command.replace("%2F","/")
 
         index = command.find("=");
         command = command[index+1:-1]
 
-        #print(command)
+        print(command)
         rc = ExecuteCode(command)
 
         #call function here to actually execute the code
@@ -129,9 +132,16 @@ class HTTPServer(TCPServer):
 
         blank_line = b'\r\n'
 
-        resonse_body = b"<h1>Received command</h1>"
+        
+        #response_body = "<h1>command output</h1>".join((f"<body>{currentProc}</body>"))
 
-        return b"".join([response_line,response_headers,blank_line,resonse_body])
+        proc =  str(rc.process)
+        proc = proc.replace("\\n","<br>")
+        response_body = f"<h1>Command output</h1><p>{proc}</p>"
+        
+        response_body = response_body.encode()
+
+        return b"".join([response_line,response_headers,blank_line,response_body])
 
     def HTTP_501_handler(self,request):
        response_line = self.response_line(status_code=501)
@@ -180,9 +190,11 @@ class HTTPRequest:
 
 
 class ExecuteCode:
+    process= ""
     def __init__(self,command):
-        process = subprocess.run(["powershell", "-Command",command], capture_output=True,text=True)
-        print(process)
+        self.process = subprocess.run(["powershell", "-Command",command], capture_output=True,text=True)
+        print(self.process)
+        
 
 if __name__ == '__main__':
     server = HTTPServer()
